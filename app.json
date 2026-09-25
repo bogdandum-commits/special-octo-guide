@@ -29,6 +29,11 @@
       "expo-router",
       "expo-status-bar",
       ["expo-image-picker", {"photosPermission": "Fotografiile selectate vor fi folosite în anunțul imobiliar.", "microphonePermission": false}]
-    ]
+    ],
+    "extra": {
+      "eas": {
+        "projectId": "d445b849-6ea4-471f-b07f-aaab505433bd"
+      }
+    }
   }
 }
