@@ -10,4 +10,4 @@ Verificări: `npm run lint` și `npx tsc --noEmit`
 
 Construire iOS: `npx eas-cli@latest build --platform ios --profile production`
 
-Bundle ID iOS: `ro.dumitruimobiliare.app`.
+Bundle ID iOS: `DUMITRU-IOS-001` (identificatorul din App Store Connect; SKU: `ro.dumitruimobiliare.app`).
