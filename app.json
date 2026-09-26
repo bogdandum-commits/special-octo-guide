@@ -10,7 +10,7 @@
     "userInterfaceStyle": "light",
     "ios": {
       "supportsTablet": true,
-      "bundleIdentifier": "ro.dumitruimobiliare.app"
+      "bundleIdentifier": "DUMITRU-IOS-001"
     },
     "android": {
       "package": "ro.dumitruimobiliare.app",
