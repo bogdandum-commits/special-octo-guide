@@ -1,0 +1,66 @@
+name: Capture iPad App Store screenshots
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [codex/ipad-screenshots]
+
+permissions:
+  contents: read
+
+jobs:
+  capture:
+    runs-on: macos-26
+    timeout-minutes: 60
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+      - run: npm ci
+      - name: Build the real iPad app for Simulator
+        run: npx expo run:ios --configuration Release --device generic --output ./build
+      - name: Boot a 13-inch iPad and capture the app
+        shell: bash
+        run: |
+          set -euo pipefail
+          DEVICE_TYPE=$(python3 - <<'PY'
+          import json, subprocess
+          types = json.loads(subprocess.check_output(['xcrun','simctl','list','devicetypes','-j']))['devicetypes']
+          matches = [d for d in types if 'iPad Pro 13-inch' in d['name']]
+          if not matches: raise SystemExit('No 13-inch iPad Pro simulator device type is installed')
+          print(matches[-1]['identifier'])
+          PY
+          )
+          RUNTIME=$(python3 - <<'PY'
+          import json, subprocess
+          runtimes = json.loads(subprocess.check_output(['xcrun','simctl','list','runtimes','-j']))['runtimes']
+          matches = [r for r in runtimes if r.get('isAvailable') and r['identifier'].startswith('com.apple.CoreSimulator.SimRuntime.iOS-')]
+          if not matches: raise SystemExit('No iOS simulator runtime is installed')
+          print(matches[-1]['identifier'])
+          PY
+          )
+          DEVICE=$(xcrun simctl create 'Dumitru Imobiliare iPad 13' "$DEVICE_TYPE" "$RUNTIME")
+          xcrun simctl boot "$DEVICE"
+          xcrun simctl bootstatus "$DEVICE" -b
+          APP=$(find ./build -maxdepth 1 -name '*.app' -print -quit)
+          test -n "$APP"
+          xcrun simctl install "$DEVICE" "$APP"
+          xcrun simctl launch "$DEVICE" DUMITRU-IOS-001
+          mkdir -p screenshots
+          sleep 18
+          xcrun simctl io "$DEVICE" screenshot screenshots/01_iPad_home.png
+          xcrun simctl openurl "$DEVICE" 'dumitruimobiliare://listing/1'
+          sleep 8
+          xcrun simctl io "$DEVICE" screenshot screenshots/02_iPad_listing.png
+          xcrun simctl openurl "$DEVICE" 'dumitruimobiliare://publish'
+          sleep 8
+          xcrun simctl io "$DEVICE" screenshot screenshots/03_iPad_publish.png
+          sips -g pixelWidth -g pixelHeight screenshots/*.png
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: dumitru-imobiliare-ipad-screenshots
+          path: screenshots/*.png
+          if-no-files-found: warn
