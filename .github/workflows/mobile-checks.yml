@@ -1,0 +1,23 @@
+name: Mobile checks
+on:
+  push:
+    branches: [main, fix/photo-upload-listing-views]
+  pull_request:
+permissions:
+  contents: read
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      - name: Verify Expo dependency versions
+        run: npx expo install --check
+        env:
+          CI: "1"
+      - run: npm run lint
+      - run: npx tsc --noEmit

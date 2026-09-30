@@ -13,6 +13,7 @@ export type Listing = {
   phone: string;
   photos: string[];
   featured: boolean;
+  stats?: { views: number; favorites: number; contacts: number };
   floor?: number;
   negotiable?: boolean;
   features?: string[];
@@ -44,3 +45,10 @@ export async function getListings(): Promise<Listing[]> {
 }
 
 export const euro = (amount: number) => `${amount.toLocaleString("ro-RO")} €`;
+
+export const viewLabel = (listing: Listing) => {
+  const views = listing.stats?.views;
+  return typeof views === "number" && Number.isFinite(views) && views >= 0
+    ? `${views.toLocaleString("ro-RO")} ${views === 1 ? "vizualizare" : "vizualizări"}`
+    : "Vizualizări indisponibile momentan";
+};
