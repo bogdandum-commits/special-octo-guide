@@ -7,12 +7,14 @@ import { blockPhone } from "../../lib/blocked";
 
 export default function ListingDetail() {
   const { id } = useLocalSearchParams<{ id: string }>();
+  return <ListingDetailContent key={id} id={id} />;
+}
+
+function ListingDetailContent({ id }: { id: string }) {
   const [listing, setListing] = useState<Listing | null>(id === "1" ? originalListing : null);
   const [active, setActive] = useState(0);
   useEffect(() => {
     let current = true;
-    setActive(0);
-    setListing(id === "1" ? originalListing : null);
     getListings().then(rows => {
       if (current) setListing(rows.find(p => p.id === id) ?? null);
     }).catch(() => {});
