@@ -29,7 +29,15 @@ export default function Publish() {
       const asset=photos[index];
       const type=asset.mimeType??"image/jpeg";
       if(!["image/jpeg","image/png","image/webp"].includes(type)){setError("Alege fotografii JPG, PNG sau WebP.");setBusy(false);return}
-      data.append("photos",{uri:asset.uri,name:asset.fileName??`fotografie-${index}.jpg`,type} as unknown as Blob);
+      // React Native FormData expects its native file descriptor here, not a web Blob.
+      // Casting the descriptor to Blob causes "Unsupported FormDataPart implementation" on iOS.
+      const extension = type === "image/png" ? "png" : type === "image/webp" ? "webp" : "jpg";
+      const file = {
+        uri: asset.uri,
+        name: asset.fileName ?? `fotografie-${index + 1}.${extension}`,
+        type,
+      };
+      data.append("photos", file as any);
     }
     try {
       const response=await fetch(`${ORIGIN}/api/listings`,{method:"POST",body:data});
