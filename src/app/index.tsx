@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useState } from "react";
 import { ActivityIndicator, Image, Linking, Pressable, RefreshControl, ScrollView, StyleSheet, Text, TextInput, View } from "react-native";
 import { router, useFocusEffect } from "expo-router";
 import { SafeAreaView } from "react-native-safe-area-context";
@@ -12,9 +12,15 @@ export default function Home() {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
   const [blocked, setBlocked] = useState<string[]>([]);
-  useFocusEffect(useCallback(() => { setBlocked(blockedPhones()); }, []));
+
   async function refresh() { setLoading(true); try { setItems(await getListings()); setError(""); } catch(e) { setError(e instanceof Error ? e.message : "Nu s-au putut încărca anunțurile."); } finally { setLoading(false); } }
-  useEffect(() => { let active=true; getListings().then(rows=>{if(active)setItems(rows)}).catch(e=>{if(active)setError(e instanceof Error?e.message:"Nu s-au putut încărca anunțurile.")}); return ()=>{active=false}; }, []);
+  useFocusEffect(useCallback(() => {
+    let active = true;
+    setBlocked(blockedPhones());
+    getListings().then(rows => { if (active) { setItems(rows); setError(""); } })
+      .catch(e => { if (active) setError(e instanceof Error ? e.message : "Nu s-au putut încărca anunțurile."); });
+    return () => { active = false; };
+  }, []));
   const filtered = items.filter(p => !blocked.includes(p.phone) && (mode === "all" || p.transaction === mode) && `${p.name} ${p.area}`.toLocaleLowerCase("ro").includes(query.trim().toLocaleLowerCase("ro")));
   return <SafeAreaView style={styles.safe} edges={["bottom"]}><ScrollView contentContainerStyle={styles.container} refreshControl={<RefreshControl refreshing={loading} onRefresh={refresh}/> }><View style={styles.hero}><Text style={styles.eyebrow}>DUMITRU IMOBILIARE · ROMÂNIA</Text><Text style={styles.heroTitle}>Găsește locul potrivit pentru tine.</Text><Text style={styles.heroSub}>Caută locuințe din toată țara sau publică un anunț gratuit.</Text><Pressable style={styles.goldButton} onPress={() => router.push("/publish")}><Text style={styles.goldText}>＋ Publică anunț</Text></Pressable></View><TextInput value={query} onChangeText={setQuery} placeholder="Oraș, cartier, proprietate…" placeholderTextColor="#82909e" style={styles.search} accessibilityLabel="Caută proprietăți"/><View style={styles.tabs}>{[["all","Toate"],["vanzare","Cumpără"],["inchiriere","Închiriază"]].map(([value,label])=><Pressable key={value} onPress={()=>setMode(value)} style={[styles.tab,mode===value&&styles.tabActive]}><Text style={[styles.tabText,mode===value&&styles.tabTextActive]}>{label}</Text></Pressable>)}</View><View style={styles.heading}><Text style={styles.headingText}>Proprietăți</Text><Text style={styles.count}>{filtered.length} rezultate</Text></View>{error ? <Text style={styles.error}>{error}</Text> : null}{loading && items.length===0 ? <ActivityIndicator color="#b88b4e"/> : null}{filtered.map(item=><Pressable key={item.id} style={styles.card} onPress={()=>router.push({pathname:"/listing/[id]",params:{id:item.id}})}><Image alt={`Fotografie ${item.name}`} source={{uri:item.photos[0]}} style={styles.photo}/><View style={styles.cardBody}><Text style={styles.badge}>{item.transaction==="vanzare" ? "VÂNZARE" : "ÎNCHIRIERE"}</Text><Text style={styles.cardTitle}>{item.name}</Text><Text style={styles.location}>⌖ {item.area}</Text><Text style={styles.meta}>{item.rooms ? `${item.rooms} camere` : "Teren"}{item.size ? ` · ${item.size} m²` : ""}</Text><Text style={styles.meta}>{viewLabel(item)}</Text><Text style={styles.price}>{euro(item.price)}{item.transaction==="inchiriere" ? " / lună" : ""}</Text></View></Pressable>)}{!filtered.length&&<Text style={styles.empty}>Nu sunt rezultate pentru această căutare.</Text>}<Pressable onPress={()=>Linking.openURL("https://dumitru-imobiliare.bogdan-dum.chatgpt.site/confidentialitate.html")}><Text style={styles.privacy}>Confidențialitate</Text></Pressable><Pressable onPress={()=>Linking.openURL("tel:0758408604")}><Text style={styles.contact}>Contactează agenția · 0758 408 604</Text></Pressable></ScrollView></SafeAreaView>;
 }

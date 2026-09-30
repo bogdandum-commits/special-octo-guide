@@ -9,7 +9,15 @@ export default function ListingDetail() {
   const { id } = useLocalSearchParams<{ id: string }>();
   const [listing, setListing] = useState<Listing | null>(id === "1" ? originalListing : null);
   const [active, setActive] = useState(0);
-  useEffect(() => { getListings().then(rows => setListing(rows.find(p => p.id === id) ?? null)).catch(() => {}); }, [id]);
+  useEffect(() => {
+    let current = true;
+    setActive(0);
+    setListing(id === "1" ? originalListing : null);
+    getListings().then(rows => {
+      if (current) setListing(rows.find(p => p.id === id) ?? null);
+    }).catch(() => {});
+    return () => { current = false; };
+  }, [id]);
   function blockPublisher() {
     if (!listing) return;
     Alert.alert("Blochează publicatorul", "Nu vei mai vedea anunțurile acestui număr de telefon pe acest dispozitiv.", [
