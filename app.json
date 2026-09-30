@@ -4,7 +4,7 @@
     "owner": "dumitru.imob19",
     "slug": "dumitru-imobiliare",
     "scheme": "dumitruimobiliare",
-    "version": "1.0.0",
+    "version": "1.0.1",
     "orientation": "portrait",
     "icon": "./assets/icon.png",
     "userInterfaceStyle": "light",
@@ -28,7 +28,13 @@
     "plugins": [
       "expo-router",
       "expo-status-bar",
-      ["expo-image-picker", {"photosPermission": "Fotografiile selectate vor fi folosite în anunțul imobiliar.", "microphonePermission": false}]
+      [
+        "expo-image-picker",
+        {
+          "photosPermission": "Fotografiile selectate vor fi folosite în anunțul imobiliar.",
+          "microphonePermission": false
+        }
+      ]
     ],
     "extra": {
       "eas": {
