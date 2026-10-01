@@ -4,6 +4,8 @@ import * as ImagePicker from "expo-image-picker";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { router } from "expo-router";
 import { ORIGIN } from "../lib/api";
+import { fetch } from "expo/fetch";
+import { preparePhoto, type UploadPhoto } from "../lib/photos";
 
 const kinds = [["apartament","Apartament"],["casa","Casă"],["teren","Teren"]];
 
@@ -12,42 +14,67 @@ export default function Publish() {
   const [photos, setPhotos] = useState<ImagePicker.ImagePickerAsset[]>([]);
   const [consent, setConsent] = useState(false);
   const [busy, setBusy] = useState(false);
+  const [choosing, setChoosing] = useState(false);
+  const [progress, setProgress] = useState("");
   const [error, setError] = useState("");
   const update=(key:keyof typeof form)=>(value:string)=>setForm(current=>({...current,[key]:value}));
   async function choosePhotos() {
-    const result=await ImagePicker.launchImageLibraryAsync({mediaTypes:["images"],allowsMultipleSelection:true,selectionLimit:6,quality:0.8,preferredAssetRepresentationMode:ImagePicker.UIImagePickerPreferredAssetRepresentationMode.Compatible});
-    if (!result.canceled) setPhotos(result.assets.slice(0,6));
+    if (busy || choosing) return;
+    setChoosing(true);
+    setError("");
+    try {
+      const result = await ImagePicker.launchImageLibraryAsync({
+        mediaTypes: ["images"],
+        allowsMultipleSelection: true,
+        selectionLimit: 6,
+        quality: 1,
+        shouldDownloadFromNetwork: true,
+        preferredAssetRepresentationMode: ImagePicker.UIImagePickerPreferredAssetRepresentationMode.Compatible,
+      });
+      if (!result.canceled) setPhotos(result.assets.slice(0, 6));
+    } catch {
+      setError("Nu s-au putut deschide fotografiile. Verifică accesul la poze și conexiunea pentru fotografiile din iCloud.");
+    } finally {
+      setChoosing(false);
+    }
   }
   async function submit() {
-    if(form.title.trim().length<8||form.city.trim().length<2||form.description.trim().length<30||!/^07\d{8}$/.test(form.phone.replace(/[\s()-]/g,""))||!Number(form.area)||!Number(form.price)||!photos.length||!consent){setError("Completează toate câmpurile, adaugă fotografii și confirmă acordul.");return}
-    if(photos.some(p=>p.fileSize&&p.fileSize>4_000_000)){setError("Fiecare fotografie trebuie să fie mai mică de 4 MB.");return}
-    setBusy(true);setError("");
-    const data=new FormData();
-    Object.entries(form).forEach(([key,value])=>data.append(key,value));
-    data.append("consent","yes");
-    for (let index=0;index<photos.length;index++) {
-      const asset=photos[index];
-      const type=asset.mimeType??"image/jpeg";
-      if(!["image/jpeg","image/png","image/webp"].includes(type)){setError("Alege fotografii JPG, PNG sau WebP.");setBusy(false);return}
-      // React Native FormData expects its native file descriptor here, not a web Blob.
-      // Casting the descriptor to Blob causes "Unsupported FormDataPart implementation" on iOS.
-      const extension = type === "image/png" ? "png" : type === "image/webp" ? "webp" : "jpg";
-      const file = {
-        uri: asset.uri,
-        name: asset.fileName ?? `fotografie-${index + 1}.${extension}`,
-        type,
-      };
-      data.append("photos", file as any);
-    }
+    if (busy || choosing) return;
+    const phone = form.phone.replace(/[\s()-]/g, "");
+    if(form.title.trim().length<8||form.city.trim().length<2||form.description.trim().length<30||!/^07\d{8}$/.test(phone)||!Number(form.area)||!Number(form.price)||!photos.length||!consent){setError("Completează toate câmpurile, adaugă fotografii și confirmă acordul.");return}
+    setBusy(true);
+    setError("");
+    const prepared: UploadPhoto[] = [];
     try {
-      const response=await fetch(`${ORIGIN}/api/listings`,{method:"POST",body:data});
-      const result=await response.json() as {error?:string};
-      if(!response.ok)throw new Error(result.error??"Anunțul nu a putut fi trimis.");
+      const data = new FormData();
+      Object.entries({ ...form, phone }).forEach(([key, value]) => data.append(key, value.trim()));
+      data.append("consent", "yes");
+      for (let index = 0; index < photos.length; index++) {
+        setProgress(`Se pregătește fotografia ${index + 1} din ${photos.length}…`);
+        const photo = await preparePhoto(photos[index]);
+        prepared.push(photo);
+        data.append("photos", photo.blob, `fotografie-${index + 1}.jpg`);
+      }
+      setProgress("Se trimite anunțul…");
+      const response = await fetch(`${ORIGIN}/api/listings`, { method: "POST", body: data });
+      const result = await response.json().catch(() => null) as { error?: string } | null;
+      if (!response.ok) {
+        throw new Error(result?.error ?? (response.status === 413
+          ? "Fotografiile depășesc limita serverului. Încearcă mai puține fotografii."
+          : "Anunțul nu a putut fi trimis. Încearcă din nou."));
+      }
       Alert.alert("Anunț trimis","Va apărea în aplicație după verificare.",[{text:"Închide",onPress:()=>router.back()}]);
-    } catch(e) {setError(e instanceof Error?e.message:"Anunțul nu a putut fi trimis.")}
-    finally {setBusy(false)}
+    } catch(e) {
+      setError(e instanceof Error ? e.message : "Anunțul nu a putut fi trimis.");
+    } finally {
+      for (const photo of prepared) {
+        try { photo.dispose(); } catch { /* Cache cleanup must not hide the upload result. */ }
+      }
+      setBusy(false);
+      setProgress("");
+    }
   }
-  return <SafeAreaView style={styles.safe} edges={["bottom"]}><KeyboardAvoidingView style={{flex:1}} behavior={Platform.OS==="ios"?"padding":undefined}><ScrollView contentContainerStyle={styles.content} keyboardShouldPersistTaps="handled"><Text style={styles.title}>Publică gratuit</Text><Text style={styles.intro}>Completează datele proprietății. Anunțul este verificat înainte de publicare.</Text><Field label="Titlul anunțului" value={form.title} onChangeText={update("title")} placeholder="Apartament cu 2 camere"/><Field label="Oraș" value={form.city} onChangeText={update("city")} placeholder="București"/><Field label="Cartier / zonă" value={form.district} onChangeText={update("district")} placeholder="Opțional"/><Text style={styles.label}>Tip proprietate</Text><View style={styles.choices}>{kinds.map(([value,label])=><Choice key={value} title={label} selected={form.kind===value} onPress={()=>update("kind")(value)}/>)}</View><Text style={styles.label}>Tranzacție</Text><View style={styles.choices}><Choice title="Vânzare" selected={form.transaction==="vanzare"} onPress={()=>update("transaction")("vanzare")}/><Choice title="Închiriere" selected={form.transaction==="inchiriere"} onPress={()=>update("transaction")("inchiriere")}/></View><Field label="Camere (0 pentru teren)" value={form.rooms} onChangeText={update("rooms")} keyboardType="number-pad"/><Field label="Suprafață (m²)" value={form.area} onChangeText={update("area")} keyboardType="number-pad"/><Field label="Preț (€)" value={form.price} onChangeText={update("price")} keyboardType="number-pad"/><Field label="Telefon de contact" value={form.phone} onChangeText={update("phone")} keyboardType="phone-pad" placeholder="07xx xxx xxx"/><Field label="Descriere" value={form.description} onChangeText={update("description")} multiline numberOfLines={5} placeholder="Descrie dotările și zona."/><Text style={styles.label}>Fotografii (1–6)</Text><Pressable style={styles.photosButton} onPress={choosePhotos}><Text style={styles.photosText}>Alege fotografii · {photos.length} selectate</Text></Pressable><ScrollView horizontal style={{marginVertical:12}}>{photos.map((photo,index)=><Image alt={`Fotografia selectată ${index+1}`} key={`${photo.uri}-${index}`} source={{uri:photo.uri}} style={styles.thumb}/>)}</ScrollView><Pressable style={styles.consent} onPress={()=>setConsent(!consent)} accessibilityRole="checkbox" accessibilityState={{checked:consent}}><Text style={styles.box}>{consent?"☑":"□"}</Text><Text style={styles.consentText}>Confirm că am dreptul să public fotografiile și numărul de telefon și accept regulile de publicare.</Text></Pressable><Pressable onPress={()=>Linking.openURL(`${ORIGIN}/reguli.html`)}><Text style={styles.link}>Reguli de publicare</Text></Pressable><Pressable onPress={()=>Linking.openURL(`${ORIGIN}/confidentialitate.html`)}><Text style={styles.link}>Confidențialitate</Text></Pressable>{error?<Text style={styles.error}>{error}</Text>:null}<Pressable style={[styles.submit,busy&&{opacity:0.5}]} disabled={busy} onPress={submit}><Text style={styles.submitText}>{busy?"Se trimite…":"Trimite spre verificare"}</Text></Pressable></ScrollView></KeyboardAvoidingView></SafeAreaView>;
+  return <SafeAreaView style={styles.safe} edges={["bottom"]}><KeyboardAvoidingView style={{flex:1}} behavior={Platform.OS==="ios"?"padding":undefined}><ScrollView contentContainerStyle={styles.content} keyboardShouldPersistTaps="handled"><Text style={styles.title}>Publică gratuit</Text><Text style={styles.intro}>Completează datele proprietății. Anunțul este verificat înainte de publicare.</Text><Field label="Titlul anunțului" value={form.title} onChangeText={update("title")} placeholder="Apartament cu 2 camere"/><Field label="Oraș" value={form.city} onChangeText={update("city")} placeholder="București"/><Field label="Cartier / zonă" value={form.district} onChangeText={update("district")} placeholder="Opțional"/><Text style={styles.label}>Tip proprietate</Text><View style={styles.choices}>{kinds.map(([value,label])=><Choice key={value} title={label} selected={form.kind===value} onPress={()=>update("kind")(value)}/>)}</View><Text style={styles.label}>Tranzacție</Text><View style={styles.choices}><Choice title="Vânzare" selected={form.transaction==="vanzare"} onPress={()=>update("transaction")("vanzare")}/><Choice title="Închiriere" selected={form.transaction==="inchiriere"} onPress={()=>update("transaction")("inchiriere")}/></View><Field label="Camere (0 pentru teren)" value={form.rooms} onChangeText={update("rooms")} keyboardType="number-pad"/><Field label="Suprafață (m²)" value={form.area} onChangeText={update("area")} keyboardType="number-pad"/><Field label="Preț (€)" value={form.price} onChangeText={update("price")} keyboardType="number-pad"/><Field label="Telefon de contact" value={form.phone} onChangeText={update("phone")} keyboardType="phone-pad" placeholder="07xx xxx xxx"/><Field label="Descriere" value={form.description} onChangeText={update("description")} multiline numberOfLines={5} placeholder="Descrie dotările și zona."/><Text style={styles.label}>Fotografii (1–6)</Text><Pressable style={styles.photosButton} disabled={busy || choosing} onPress={choosePhotos}><Text style={styles.photosText}>{choosing ? "Se deschid fotografiile…" : `Alege fotografii · ${photos.length} selectate`}</Text></Pressable><Text style={styles.intro}>Fotografiile sunt convertite și micșorate automat pentru încărcare.</Text><ScrollView horizontal style={{marginVertical:12}}>{photos.map((photo,index)=><Image alt={`Fotografia selectată ${index+1}`} key={`${photo.uri}-${index}`} source={{uri:photo.uri}} style={styles.thumb}/>)}</ScrollView><Pressable style={styles.consent} onPress={()=>setConsent(!consent)} accessibilityRole="checkbox" accessibilityState={{checked:consent}}><Text style={styles.box}>{consent?"☑":"□"}</Text><Text style={styles.consentText}>Confirm că am dreptul să public fotografiile și numărul de telefon și accept regulile de publicare.</Text></Pressable><Pressable onPress={()=>Linking.openURL(`${ORIGIN}/reguli.html`)}><Text style={styles.link}>Reguli de publicare</Text></Pressable><Pressable onPress={()=>Linking.openURL(`${ORIGIN}/confidentialitate.html`)}><Text style={styles.link}>Confidențialitate</Text></Pressable>{error?<Text style={styles.error}>{error}</Text>:null}<Pressable style={[styles.submit,busy&&{opacity:0.5}]} disabled={busy || choosing} onPress={submit}><Text style={styles.submitText}>{busy ? progress || "Se pregătește…" : "Trimite spre verificare"}</Text></Pressable></ScrollView></KeyboardAvoidingView></SafeAreaView>;
 }
 
 function Field(props:{label:string;value:string;onChangeText:(value:string)=>void;placeholder?:string;keyboardType?:"number-pad"|"phone-pad";multiline?:boolean;numberOfLines?:number}){return <View style={{marginBottom:15}}><Text style={styles.label}>{props.label}</Text><TextInput {...props} style={[styles.input,props.multiline&&{height:110,textAlignVertical:"top"}]} placeholderTextColor="#8a96a3"/></View>}

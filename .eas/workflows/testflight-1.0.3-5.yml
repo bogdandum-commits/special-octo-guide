@@ -1,0 +1,14 @@
+name: TestFlight 1.0.3 (5)
+
+on:
+  workflow_dispatch: {}
+
+jobs:
+  submit:
+    name: Upload administration update to internal TestFlight
+    type: submit
+    params:
+      build_id: 84157fd5-7263-487d-84af-402f1c4e4b1d
+      profile: production
+      groups:
+        - Testare interna
