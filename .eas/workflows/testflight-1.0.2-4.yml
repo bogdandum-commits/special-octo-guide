@@ -1,0 +1,17 @@
+name: TestFlight 1.0.2 (4)
+
+# Manual only: this workflow uploads the already completed iOS build.
+on:
+  workflow_dispatch: {}
+
+jobs:
+  testflight:
+    name: Upload 1.0.2 (4) to internal TestFlight
+    type: testflight
+    params:
+      build_id: c6ba1f6e-e1d3-42e9-9e9f-2e54c0f2dfa7
+      profile: production
+      internal_groups:
+        - Testare interna
+      submit_beta_review: false
+      changelog: Verifica trimiterea anunturilor cu fotografii JPEG, PNG si HEIC, inclusiv fotografii din iCloud.
