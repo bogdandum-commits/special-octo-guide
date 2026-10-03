@@ -1,5 +1,5 @@
 import { useRef, useState } from "react";
-import { Alert, Pressable, StyleSheet, Text } from "react-native";
+import { Alert, Platform, Pressable, StyleSheet, Text } from "react-native";
 import * as WebBrowser from "expo-web-browser";
 import { ORIGIN } from "../lib/api";
 
@@ -31,6 +31,8 @@ export default function AdminButton({ onClosed }: { onClosed: () => void }) {
       setBusy(false);
     }
   }
+
+  if (Platform.OS === "android") return null;
 
   return (
     <Pressable accessibilityRole="button" accessibilityLabel="Administrare anunțuri"
