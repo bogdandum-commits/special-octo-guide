@@ -1,9 +1,10 @@
-import { useEffect, useState } from "react";
+import { useCallback, useState } from "react";
 import { Alert, Image, Linking, Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
-import { router, useLocalSearchParams } from "expo-router";
+import { router, useFocusEffect, useLocalSearchParams } from "expo-router";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { euro, getListings, originalListing, viewLabel, type Listing } from "../../lib/api";
 import { blockPhone } from "../../lib/blocked";
+import { recordView } from "../../lib/audience";
 
 export default function ListingDetail() {
   const { id } = useLocalSearchParams<{ id: string }>();
@@ -13,13 +14,21 @@ export default function ListingDetail() {
 function ListingDetailContent({ id }: { id: string }) {
   const [listing, setListing] = useState<Listing | null>(id === "1" ? originalListing : null);
   const [active, setActive] = useState(0);
-  useEffect(() => {
+  useFocusEffect(useCallback(() => {
     let current = true;
-    getListings().then(rows => {
-      if (current) setListing(rows.find(p => p.id === id) ?? null);
+    getListings().then(async rows => {
+      if (!current) return;
+      const item = rows.find(p => p.id === id) ?? null;
+      setListing(item);
+      if (item) {
+        try {
+          const stats = await recordView(item.id);
+          if (current) setListing({ ...item, stats });
+        } catch { /* Retry on the next focus; never invent or increment a local count. */ }
+      }
     }).catch(() => {});
     return () => { current = false; };
-  }, [id]);
+  }, [id]));
   function blockPublisher() {
     if (!listing) return;
     Alert.alert("Blochează publicatorul", "Nu vei mai vedea anunțurile acestui număr de telefon pe acest dispozitiv.", [
@@ -32,3 +41,4 @@ function ListingDetailContent({ id }: { id: string }) {
 }
 
 const styles=StyleSheet.create({safe:{flex:1},content:{paddingBottom:40,backgroundColor:"#f5f6f7"},center:{flex:1,alignItems:"center",justifyContent:"center"},mainImage:{height:300,width:"100%",backgroundColor:"#dce1e5"},thumbnails:{paddingHorizontal:16,marginVertical:14},thumb:{width:66,height:58,borderRadius:7,marginRight:7,borderWidth:2,borderColor:"transparent"},selected:{borderColor:"#b88c50"},eyebrow:{marginHorizontal:20,marginTop:8,color:"#a17742",fontSize:12,fontWeight:"800",letterSpacing:1},title:{fontFamily:"serif",fontSize:29,lineHeight:35,color:"#142337",marginHorizontal:20,marginTop:8},area:{marginHorizontal:20,color:"#69798a",fontSize:15,marginTop:8},price:{fontSize:24,fontWeight:"800",color:"#142337",marginHorizontal:20,marginTop:18},specs:{flexDirection:"row",flexWrap:"wrap",gap:8,marginHorizontal:20,marginTop:20},spec:{backgroundColor:"white",borderRadius:8,padding:10,color:"#37495a"},section:{fontSize:19,fontWeight:"700",color:"#182b40",marginHorizontal:20,marginTop:26,marginBottom:9},body:{fontSize:16,color:"#536476",marginHorizontal:20,lineHeight:24,marginBottom:6},call:{backgroundColor:"#c39a5d",marginHorizontal:20,padding:15,alignItems:"center",borderRadius:11,marginTop:27},callText:{color:"#142337",fontWeight:"800",fontSize:16},actions:{marginHorizontal:20,marginTop:24,gap:17},actionText:{color:"#74512e",fontSize:15,textDecorationLine:"underline"}});
+
