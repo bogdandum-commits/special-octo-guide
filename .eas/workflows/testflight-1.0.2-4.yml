@@ -1,0 +1,15 @@
+name: TestFlight 1.0.2 (4)
+
+# Manual only: upload the already completed build to the owner's internal group.
+on:
+  workflow_dispatch: {}
+
+jobs:
+  testflight:
+    name: Upload 1.0.2 (4) to internal TestFlight
+    type: submit
+    params:
+      build_id: c6ba1f6e-e1d3-42e9-9e9f-2e54c0f2dfa7
+      profile: production
+      groups:
+        - Testare interna

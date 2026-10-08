@@ -4,13 +4,17 @@
     "owner": "dumitru.imob19",
     "slug": "dumitru-imobiliare",
     "scheme": "dumitruimobiliare",
-    "version": "1.0.1",
+    "version": "1.0.4",
     "orientation": "portrait",
     "icon": "./assets/icon.png",
     "userInterfaceStyle": "light",
     "ios": {
       "supportsTablet": true,
-      "bundleIdentifier": "DUMITRU-IOS-001"
+      "bundleIdentifier": "DUMITRU-IOS-001",
+      "buildNumber": "6",
+      "config": {
+        "usesNonExemptEncryption": false
+      }
     },
     "android": {
       "package": "ro.dumitruimobiliare.app",
@@ -31,10 +35,11 @@
       [
         "expo-image-picker",
         {
-          "photosPermission": "Fotografiile selectate vor fi folosite în anunțul imobiliar.",
+          "photosPermission": "Fotografiile selectate vor fi folosite \u00een anun\u021bul imobiliar.",
           "microphonePermission": false
         }
-      ]
+      ],
+      "expo-web-browser"
     ],
     "extra": {
       "eas": {
